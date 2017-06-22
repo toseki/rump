@@ -16,7 +16,7 @@ func handle(err error) {
 }
 
 // Scan and queue source keys.
-func get(conn redis.Conn, queue chan<- map[string]string, match string) {
+func get(conn redis.Conn, queue chan<- map[string]string, match string, count int) {
 	var (
 		cursor int64
 		keys []string
@@ -24,7 +24,7 @@ func get(conn redis.Conn, queue chan<- map[string]string, match string) {
 
 	for {
 		// Scan a batch of keys.
-		values, err := redis.Values(conn.Do("SCAN", cursor, "MATCH", match))
+		values, err := redis.Values(conn.Do("SCAN", cursor, "MATCH", match, "COUNT", count))
 		handle(err)
 		values, err = redis.Scan(values, &cursor, &keys)
 		handle(err)
@@ -75,6 +75,8 @@ func main() {
 	from := flag.String("from", "", "example: redis://127.0.0.1:6379/0")
 	to := flag.String("to", "", "example: redis://127.0.0.1:6379/1")
 	match := flag.String("match", "*", "example: h*llo")
+	count := flag.Int("count", 10, "example: 100")
+
 	flag.Parse()
 
 	source, err := redis.DialURL(*from)
@@ -85,10 +87,10 @@ func main() {
 	defer destination.Close()
 
 	// Channel where batches of keys will pass.
-	queue := make(chan map[string]string, 100)
+	queue := make(chan map[string]string, *count * 10)
 
 	// Scan and send to queue.
-	go get(source, queue, *match)
+	go get(source, queue, *match, *count)
 
 	// Restore keys as they come into queue.
 	put(destination, queue)
