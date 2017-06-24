@@ -1,10 +1,10 @@
 package main
 
 import (
-	"os"
-	"fmt"
 	"flag"
+	"fmt"
 	"github.com/garyburd/redigo/redis"
+	"os"
 )
 
 // Report all errors to stdout.
@@ -19,7 +19,7 @@ func handle(err error) {
 func get(conn redis.Conn, queue chan<- map[string]string, match string, count int) {
 	var (
 		cursor int64
-		keys []string
+		keys   []string
 	)
 
 	for {
@@ -87,7 +87,7 @@ func main() {
 	defer destination.Close()
 
 	// Channel where batches of keys will pass.
-	queue := make(chan map[string]string, *count * 10)
+	queue := make(chan map[string]string, *count*10)
 
 	// Scan and send to queue.
 	go get(source, queue, *match, *count)
