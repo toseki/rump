@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/garyburd/redigo/redis"
+	"log"
 	"os"
+
+	"github.com/garyburd/redigo/redis"
+	"github.com/toseki/rump/rw"
 )
 
 // Report all errors to stdout.
@@ -61,6 +64,7 @@ func get(conn redis.Conn, queue chan<- map[string]string, match string, count in
 // Restore a batch of keys on destination.
 func put(conn redis.Conn, queue <-chan map[string]string) {
 	for batch := range queue {
+		log.Printf("info: put redis batch data = %#v", batch)
 		for key, value := range batch {
 			conn.Send("RESTORE", key, "0", value)
 		}
@@ -72,28 +76,42 @@ func put(conn redis.Conn, queue <-chan map[string]string) {
 }
 
 func main() {
-	from := flag.String("from", "", "example: redis://127.0.0.1:6379/0")
-	to := flag.String("to", "", "example: redis://127.0.0.1:6379/1")
-	match := flag.String("match", "*", "example: h*llo")
-	count := flag.Int("count", 10, "example: 100")
+	log.SetFlags(log.Ldate | log.Ltime)
+
+	from := flag.String("from", "", "SRC Redis Server. ex) redis://127.0.0.1:6379/0")
+	to := flag.String("to", "", "DEST Redis Server. ex) redis://127.0.0.1:6379/0")
+	match := flag.String("match", "*", "key match. ex) h*llo")
+	count := flag.Int("count", 10, "ex) 100")
+	path := flag.String("path", "", "dumpfile path. ex) ./dumpfiles/")
 
 	flag.Parse()
-
-	source, err := redis.DialURL(*from)
-	handle(err)
-	destination, err := redis.DialURL(*to)
-	handle(err)
-	defer source.Close()
-	defer destination.Close()
 
 	// Channel where batches of keys will pass.
 	queue := make(chan map[string]string, *count*10)
 
-	// Scan and send to queue.
-	go get(source, queue, *match, *count)
+	if *to == "" && *path != "" {
+		fmt.Println("redis -> files mode.")
+		source, err := redis.DialURL(*from)
+		handle(err)
+		defer source.Close()
 
-	// Restore keys as they come into queue.
-	put(destination, queue)
+		// Scan and send to queue.
+		go get(source, queue, *match, *count)
+		rw.Putfile(*path, queue)
+
+	} else if *from == "" && *path != "" {
+		// DirScan and send to queue.
+		go rw.Pullfile(*path, queue, *match)
+
+		fmt.Println("files -> redis mode.")
+		destination, err := redis.DialURL(*to)
+		handle(err)
+		defer destination.Close()
+
+		// Restore keys as they come into queue.
+		put(destination, queue)
+
+	}
 
 	fmt.Println("Sync done.")
 }
