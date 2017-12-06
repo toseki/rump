@@ -1,7 +1,8 @@
 .PHONY: build clean test package serve run-compose-test
 PKGS := $(shell go list ./... | grep -v /vendor/)
 #VERSION := $(shell git describe --always)
-VERSION := $(shell date "+%Y-%m-%d:%H:%M:%S")
+#VERSION := $(shell date "+%Y-%m-%d:%H:%M:%S")
+VERSION := $(shell date "+%Y-%m-%dT%H:%M")
 #GOOS ?= linux
 GOOS ?= darwin
 GOARCH ?= amd64
@@ -21,5 +22,3 @@ build-other:
 	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags "-w -X main.version=$(VERSION)" -o build/rump_darwin$(BINEXT) rump.go
 	@echo "Compiling source for linux amd64"
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags "-s -X main.version=$(VERSION)" -o build/rump_linux$(BINEXT) rump.go
-	@echo "Compiling source for Windows amd64"
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags "-s -X main.version=$(VERSION)" -o build/rump_win64.exe$(BINEXT) rump.go

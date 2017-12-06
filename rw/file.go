@@ -1,19 +1,23 @@
 package rw
 
 import (
+	"fmt"
 	"io/ioutil"
-	"log"
+	//"log"
 	"os"
 	"path"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Putfile - write keys data into the path.
-func Putfile(path string, queue <-chan map[string]string) {
+func Putfile(path string, queue <-chan map[string][]byte) {
 	for batch := range queue {
 		for key, value := range batch {
+			log.Debugf("dump filename: %s", path+`/`+key)
 			file, err := os.Create(path + `/` + key)
 			if err != nil {
-				log.Printf("error: Putfile() %s", err)
+				log.Errorf("Putfile %s, err:%s", path+`/`+key, err)
 			}
 			defer file.Close()
 
@@ -23,19 +27,18 @@ func Putfile(path string, queue <-chan map[string]string) {
 }
 
 // Pullfile Scan path and queue source keys/values from file.
-func Pullfile(pathname string, queue chan<- map[string]string, match string) {
-	log.Printf("info: target path=%s", pathname)
+func Pullfile(pathname string, queue chan<- map[string][]byte, match string) {
 
 	files, err := ioutil.ReadDir(pathname)
 	if err != nil {
-		log.Printf("error: Pullfile ReadDir %s", err)
+		log.Errorf("Pullfile ReadDir %s", err)
 	}
 
 	for _, filename := range files {
-		batch := make(map[string]string)
+		batch := make(map[string][]byte)
 
 		if filename.IsDir() {
-			log.Printf("info: %s is Directory.", filename.Name())
+			log.Debugf("%s is Directory.", filename.Name())
 			continue
 		}
 
@@ -44,14 +47,18 @@ func Pullfile(pathname string, queue chan<- map[string]string, match string) {
 		if matched == true {
 			buffer, err := ioutil.ReadFile(pathname + `/` + filename.Name())
 			if err != nil {
-				log.Printf("error: Pullfile ReadFile %s", err)
+				log.Errorf("Pullfile readfile %s, err: %s", filename.Name(), err)
 			}
-			batch[filename.Name()] = string(buffer)
-			log.Printf("info: filename = %s, data = %#v", filename.Name(), buffer)
+			batch[filename.Name()] = buffer
+			log.Debugf("read dumpfilename: %s", filename.Name())
 		}
+
+		if log.GetLevel() != 5 {
+			fmt.Print(".")
+		}
+
 		queue <- batch
 	}
-	log.Printf("info: last queue data=%#v", queue)
 	close(queue)
 
 }
