@@ -38,7 +38,7 @@ func get(conn redis.Conn, queue chan<- map[string][]byte, match string, count in
 
 		// Get pipelined dumps.
 		for _, key := range keys {
-			log.Debugf("read redis key dump: %s", key)
+			log.Debugf("get redis key dump: %s", key)
 			conn.Send("DUMP", key)
 		}
 		dumps, err := redis.ByteSlices(conn.Do(""))
@@ -53,6 +53,24 @@ func get(conn redis.Conn, queue chan<- map[string][]byte, match string, count in
 		if log.GetLevel() != 5 {
 			fmt.Print(".")
 		}
+
+		// prevent queue overflow
+		for {
+			if len(queue) > cap(queue)-count {
+				log.WithFields(log.Fields{
+					"queue-count": len(queue),
+					"queue-max":   cap(queue),
+				}).Debug("waiting for queue space. will retry after 1sec.")
+				time.Sleep(1 * time.Second)
+			} else {
+				break
+			}
+		}
+
+		log.WithFields(log.Fields{
+			"queue-count": len(queue),
+			"queue-max":   cap(queue),
+		}).Debug("current queue usage")
 
 		// Last iteration of scan.
 		if cursor == 0 {
@@ -78,7 +96,9 @@ func put(conn redis.Conn, queue <-chan map[string][]byte, redisTTL int64) {
 			rc, err := conn.Do("")
 			handle(err)
 			if rc != nil {
-				log.Debugf("restore redis key response: %s", rc)
+				log.WithFields(log.Fields{
+					"key": key,
+				}).Debugf("restore redis key response: %s", rc)
 			}
 		}
 	}
@@ -108,7 +128,7 @@ func main() {
 	}
 
 	// Channel where batches of keys will pass.
-	queue := make(chan map[string][]byte, *count*30)
+	queue := make(chan map[string][]byte, *count*10)
 
 	// from redis to filedump
 	if *to == "" && *path != "" {
@@ -134,7 +154,7 @@ func main() {
 		log.Infof("Redis TTL setting: %d sec", redisTTL/1000)
 
 		// keys data dump path scan and send to queue.
-		go rw.Pullfile(*path, queue, *match)
+		go rw.Pullfile(*path, queue, *match, *count)
 
 		destination, err := redis.DialURL(*to)
 		handle(err)

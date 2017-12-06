@@ -3,6 +3,7 @@ package rw
 import (
 	"fmt"
 	"io/ioutil"
+	"time"
 	//"log"
 	"os"
 	"path"
@@ -14,7 +15,7 @@ import (
 func Putfile(path string, queue <-chan map[string][]byte) {
 	for batch := range queue {
 		for key, value := range batch {
-			log.Debugf("dump filename: %s", path+`/`+key)
+			log.Debugf("put dumpfile: %s", path+`/`+key)
 			file, err := os.Create(path + `/` + key)
 			if err != nil {
 				log.Errorf("Putfile %s, err:%s", path+`/`+key, err)
@@ -27,12 +28,13 @@ func Putfile(path string, queue <-chan map[string][]byte) {
 }
 
 // Pullfile Scan path and queue source keys/values from file.
-func Pullfile(pathname string, queue chan<- map[string][]byte, match string) {
+func Pullfile(pathname string, queue chan<- map[string][]byte, match string, count int) {
 
 	files, err := ioutil.ReadDir(pathname)
 	if err != nil {
 		log.Errorf("Pullfile ReadDir %s", err)
 	}
+	log.WithField("count", len(files)).Info("Total number of files")
 
 	for _, filename := range files {
 		batch := make(map[string][]byte)
@@ -50,11 +52,28 @@ func Pullfile(pathname string, queue chan<- map[string][]byte, match string) {
 				log.Errorf("Pullfile readfile %s, err: %s", filename.Name(), err)
 			}
 			batch[filename.Name()] = buffer
-			log.Debugf("read dumpfilename: %s", filename.Name())
+
+			log.WithFields(log.Fields{
+				"queue-count": len(queue),
+				"queue-max":   cap(queue),
+			}).Debugf("read dumpfile: %s", filename.Name())
 		}
 
 		if log.GetLevel() != 5 {
 			fmt.Print(".")
+		}
+
+		// prevent queue overflow
+		for {
+			if len(queue) > cap(queue)-count {
+				log.WithFields(log.Fields{
+					"queue-count": len(queue),
+					"queue-max":   cap(queue),
+				}).Debug("waiting for queue space. will retry after 1sec.")
+				time.Sleep(1 * time.Second)
+			} else {
+				break
+			}
 		}
 
 		queue <- batch
