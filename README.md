@@ -1,3 +1,39 @@
+## Added function of filedump export/import.
+
+Usage Examples
+```
+ex.1) redis to filedump
+ rump -from redis://<redis server>:<port>/0 -path ./dumpfiles/ -match "mat*ch:strings"
+
+ex.2) filedump to redis
+ rump -path ./dumpfiles/ -to redis://<redis server>:<port>/0 -match "mat*ch:strings" -ttl 240h
+
+ex.3) redis to redis
+ rump -from redis://<redis server>:<port>/0 -to redis://<redis server>:<port>/0 -match "mat*ch:strings" -ttl 240h
+```
+
+CommandLineOptions
+```
+-count int
+      ex) 100 (default 10)
+-from string
+      SRC Redis Server. ex) redis://127.0.0.1:6379/0
+-loglevel int
+      ex) debug=5, info=4, warning=3, error=2, fatal=1, panic=0 (default 4)
+-match string
+      key match. ex) h*llo (default "*")
+-path string
+      dumpfile path. ex) ./dumpfiles/
+-to string
+      DEST Redis Server. ex) redis://127.0.0.1:6379/0
+-ttl duration
+      Redis Expire TTL. ex) 24h (default 4320h0m0s)
+-version
+      show version
+```
+
+## Original README was below
+
 <h1 align="center">
 <img src="https://rawgit.com/jdorfman/rump/master/assets/images/rump_logo.svg">
 </h1>
